@@ -39,9 +39,7 @@ bool obs_module_load(void)
 {
 	notification_backend = std::make_unique<WindowsNotificationBackend>();
 	if (!notification_backend->start()) {
-		notification_backend.reset();
-		blog(LOG_ERROR, "%s notification backend startup failed", kLogPrefix);
-		return false;
+		blog(LOG_WARNING, "%s notification backend unavailable; continuing without system toasts", kLogPrefix);
 	}
 	notification_service = std::make_unique<NotificationService>(
 		[](const NotificationPayload &payload) {

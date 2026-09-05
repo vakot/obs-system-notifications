@@ -9,6 +9,8 @@
 #include <winrt/Windows.UI.Notifications.h>
 #include <winrt/base.h>
 
+#include <algorithm>
+#include <cstdint>
 #include <filesystem>
 #include <memory>
 #include <string>
@@ -22,6 +24,7 @@ namespace {
 
 constexpr const char *kLogPrefix = "[obs-system-notifications]";
 constexpr wchar_t kAppUserModelId[] = L"OBS Studio";
+constexpr size_t kMaxActiveToasts = 32;
 
 std::wstring escape_xml(std::wstring_view value)
 {
@@ -77,15 +80,35 @@ void reveal_file(const std::wstring &path)
 
 struct WindowsNotificationBackend::Impl {
 	struct ActiveToast {
+		uint64_t id = 0;
 		winrt::Windows::UI::Notifications::ToastNotification toast{nullptr};
 		winrt::event_token activationToken{};
+		winrt::event_token dismissedToken{};
 		winrt::event_token failureToken{};
 	};
 
 	winrt::Windows::UI::Notifications::ToastNotifier notifier{nullptr};
 	std::vector<std::unique_ptr<ActiveToast>> activeToasts;
+	uint64_t nextToastId = 1;
 	bool ownsRoInitialization = false;
 	bool started = false;
+
+	void remove_active_toast(uint64_t id, bool fromDismissedEvent = false)
+	{
+		const auto it = std::find_if(activeToasts.begin(), activeToasts.end(),
+			[id](const auto &activeToast) { return activeToast && activeToast->id == id; });
+		if (it == activeToasts.end())
+			return;
+
+		const auto &activeToast = *it;
+		if (activeToast->activationToken.value != 0)
+			activeToast->toast.Activated(activeToast->activationToken);
+		if (!fromDismissedEvent && activeToast->dismissedToken.value != 0)
+			activeToast->toast.Dismissed(activeToast->dismissedToken);
+		if (activeToast->failureToken.value != 0)
+			activeToast->toast.Failed(activeToast->failureToken);
+		activeToasts.erase(it);
+	}
 };
 
 WindowsNotificationBackend::WindowsNotificationBackend() : impl_(std::make_unique<Impl>()) {}
@@ -130,15 +153,8 @@ void WindowsNotificationBackend::stop()
 	if (!impl_->started && !impl_->ownsRoInitialization)
 		return;
 
-	for (const auto &activeToast : impl_->activeToasts) {
-		if (!activeToast || !activeToast->toast)
-			continue;
-		if (activeToast->activationToken.value != 0)
-			activeToast->toast.Activated(activeToast->activationToken);
-		if (activeToast->failureToken.value != 0)
-			activeToast->toast.Failed(activeToast->failureToken);
-	}
-	impl_->activeToasts.clear();
+	while (!impl_->activeToasts.empty())
+		impl_->remove_active_toast(impl_->activeToasts.back()->id);
 	impl_->notifier = nullptr;
 	impl_->started = false;
 	if (impl_->ownsRoInitialization) {
@@ -157,13 +173,20 @@ void WindowsNotificationBackend::show(const NotificationPayload &payload)
 		document.LoadXml(winrt::hstring{to_xml(payload)});
 
 		auto activeToast = std::make_unique<Impl::ActiveToast>();
+		activeToast->id = impl_->nextToastId++;
 		activeToast->toast = winrt::Windows::UI::Notifications::ToastNotification{document};
 		if (payload.clickAction == ClickAction::RevealFile && payload.filePath) {
 			const std::wstring path = payload.filePath->wstring();
+			const uint64_t toastId = activeToast->id;
 			activeToast->activationToken = activeToast->toast.Activated(
-				[path](const auto &, const auto &) {
+				[this, toastId, path](const auto &, const auto &) {
 					blog(LOG_INFO, "%s notification activated for: %ls", kLogPrefix, path.c_str());
 					reveal_file(path);
+					impl_->remove_active_toast(toastId);
+				});
+			activeToast->dismissedToken = activeToast->toast.Dismissed(
+				[this, toastId](const auto &, const auto &) {
+					impl_->remove_active_toast(toastId, true);
 				});
 			activeToast->failureToken = activeToast->toast.Failed(
 				[](const auto &, const auto &error) {
@@ -173,8 +196,11 @@ void WindowsNotificationBackend::show(const NotificationPayload &payload)
 		}
 
 		impl_->notifier.Show(activeToast->toast);
-		if (payload.clickAction != ClickAction::None)
+		if (payload.clickAction != ClickAction::None) {
+			while (impl_->activeToasts.size() >= kMaxActiveToasts)
+				impl_->remove_active_toast(impl_->activeToasts.front()->id);
 			impl_->activeToasts.push_back(std::move(activeToast));
+		}
 	} catch (const winrt::hresult_error &error) {
 		blog(LOG_WARNING, "%s failed to show notification: 0x%08lx", kLogPrefix,
 			static_cast<unsigned long>(error.code().value));

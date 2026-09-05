@@ -46,6 +46,8 @@ On 2026-09-05, the native backend compiled and loaded in the portable OBS runtim
 
 The OBS UI was exercised through the portable process: recording start/save and replay start/save/stop each produced the expected notification payload logs, including the exact final recording and replay paths. Native toasts were visible with the `OBS Studio (obs-system-notifications dev)` attribution, and clicking a saved-recording toast while OBS remained open produced the in-process activation log and opened Explorer for the exact output path. No toast creation exception or backend failure log was emitted.
 
+The hardening pass rebuilt and reinstalled the plugin through `scripts/start.ps1`, restarted the portable process, and repeated recording/replay smoke events without a crash or delivery-failure log. Backend initialization is non-fatal to plugin load; activation contexts are removed on click, dismissal, teardown, and bounded overflow.
+
 ## Open experiment gates
 
 The native backend phase must still verify, on this exact Windows fixture:
