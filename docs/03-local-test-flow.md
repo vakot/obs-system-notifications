@@ -59,7 +59,7 @@ With the standalone OBS window open:
 If notifications do not appear, confirm the identity bridge is present:
 
 ```powershell
-Get-StartApps | Where-Object Name -eq 'OBS Studio (obs-system-notifications dev)'
+Get-StartApps | Where-Object Name -eq 'OBS System Notifications'
 ```
 
 The result should show AppID `OBS Studio`. Remove the harness shortcut when finished:
