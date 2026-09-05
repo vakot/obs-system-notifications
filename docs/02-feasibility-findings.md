@@ -48,6 +48,8 @@ The OBS UI was exercised through the portable process: recording start/save and 
 
 The hardening pass rebuilt and reinstalled the plugin through `scripts/start.ps1`, restarted the portable process, and repeated recording/replay smoke events without a crash or delivery-failure log. Backend initialization is non-fatal to plugin load; activation contexts are removed on click, dismissal, teardown, and bounded overflow.
 
+Review feedback follow-up: notifications request silent audio in the toast XML. The native unpackaged plugin does not carry a packaged image-asset URI for a Lucide icon, so the display title uses stable Unicode emoji as the lightweight icon fallback. File activation uses Shell's PIDL-based selection API instead of Explorer command-line parsing, so the callback targets the exact saved file.
+
 ## Open experiment gates
 
 The native backend phase must still verify, on this exact Windows fixture:

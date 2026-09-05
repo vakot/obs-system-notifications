@@ -1,7 +1,7 @@
 #include "windows.hpp"
 
 #include <roapi.h>
-#include <shellapi.h>
+#include <shlobj.h>
 #include <windows.h>
 
 #include <winrt/Windows.Data.Xml.Dom.h>
@@ -54,12 +54,36 @@ std::wstring escape_xml(std::wstring_view value)
 	return escaped;
 }
 
+std::wstring notification_emoji(std::string_view title)
+{
+	if (title == "Recording started")
+		return L"\U0001F534";
+	if (title == "Recording paused")
+		return L"\u23F8";
+	if (title == "Recording resumed")
+		return L"\u25B6";
+	if (title == "Recording saved")
+		return L"\U0001F4BE";
+	if (title == "Replay buffer started")
+		return L"\U0001F501";
+	if (title == "Replay buffer stopped")
+		return L"\u23F9";
+	if (title == "Replay saved")
+		return L"\U0001F39E";
+	if (title == "Screenshot saved")
+		return L"\U0001F4F8";
+	return {};
+}
+
 std::wstring to_xml(const NotificationPayload &payload)
 {
 	const std::wstring title = winrt::to_hstring(payload.title).c_str();
+	const std::wstring emoji = notification_emoji(payload.title);
+	const std::wstring displayTitle = emoji.empty() ? title : emoji + L" " + title;
 	const std::wstring body = winrt::to_hstring(payload.body).c_str();
 	return L"<toast launch=\"reveal\"><visual><binding template=\"ToastGeneric\"><text>" +
-		escape_xml(title) + L"</text><text>" + escape_xml(body) + L"</text></binding></visual></toast>";
+		escape_xml(displayTitle) + L"</text><text>" + escape_xml(body) +
+		L"</text></binding></visual><audio silent=\"true\"/></toast>";
 }
 
 void reveal_file(const std::wstring &path)
@@ -69,11 +93,31 @@ void reveal_file(const std::wstring &path)
 		return;
 	}
 
-	const std::wstring arguments = L"/select,\"" + path + L"\"";
-	const HINSTANCE result = ShellExecuteW(nullptr, L"open", L"explorer.exe", arguments.c_str(), nullptr,
-		SW_SHOWNORMAL);
-	if (reinterpret_cast<INT_PTR>(result) <= 32)
-		blog(LOG_WARNING, "%s failed to open Explorer for: %ls", kLogPrefix, path.c_str());
+	PIDLIST_ABSOLUTE filePidl = nullptr;
+	const HRESULT parseResult = SHParseDisplayName(path.c_str(), nullptr, &filePidl, 0, nullptr);
+	if (FAILED(parseResult) || !filePidl) {
+		blog(LOG_WARNING, "%s failed to resolve Explorer item 0x%08lx: %ls", kLogPrefix,
+			static_cast<unsigned long>(parseResult), path.c_str());
+		return;
+	}
+
+	PIDLIST_ABSOLUTE folderPidl = ILClone(filePidl);
+	PCUITEMID_CHILD fileItem = ILFindLastID(filePidl);
+	if (!folderPidl || !fileItem || !ILRemoveLastID(folderPidl)) {
+		blog(LOG_WARNING, "%s failed to resolve Explorer folder for: %ls", kLogPrefix, path.c_str());
+		if (folderPidl)
+			ILFree(folderPidl);
+		CoTaskMemFree(filePidl);
+		return;
+	}
+
+	const HRESULT openResult = SHOpenFolderAndSelectItems(folderPidl, 1, &fileItem, 0);
+	if (FAILED(openResult))
+		blog(LOG_WARNING, "%s failed to select Explorer item 0x%08lx: %ls", kLogPrefix,
+			static_cast<unsigned long>(openResult), path.c_str());
+
+	ILFree(folderPidl);
+	CoTaskMemFree(filePidl);
 }
 
 } // namespace

@@ -49,7 +49,8 @@ Logs belong to the portable fixture under `obs-dev/config/obs-studio/logs`.
 With the standalone OBS window open:
 
 - Start recording, pause, resume, and stop. Verify the three state notifications and the saved notification.
-- Click the saved recording notification and verify Explorer selects the exact output file. The development harness uses the OBS-targeting shortcut so this exercises the in-process activation path.
+- Confirm notifications are silent and display the event-specific emoji fallback in the title.
+- Click the saved recording notification and verify Explorer selects the exact output file, rather than opening an unrelated default folder. The development harness uses the OBS-targeting shortcut so this exercises the in-process activation path.
 - Start Replay Buffer, save two replays, and stop it. Verify the start/stop/save notifications and click each saved notification independently.
 - Take a screenshot and click its notification to reveal the exact screenshot.
 - Delete a saved file before clicking its notification. Verify a warning log and no OBS crash.
