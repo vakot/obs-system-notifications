@@ -1,8 +1,11 @@
-#include <obs-frontend-api.h>
 #include <obs-module.h>
 #include <util/base.h>
 
+#include <memory>
 #include <string>
+
+#include <notifications/index.hpp>
+#include <obs/event-router/index.hpp>
 
 OBS_DECLARE_MODULE()
 
@@ -10,48 +13,44 @@ namespace {
 
 constexpr const char *kLogPrefix = "[obs-system-notifications]";
 
-const char *event_name(enum obs_frontend_event event)
+std::unique_ptr<NotificationService> notification_service;
+std::unique_ptr<EventRouter> event_router;
+
+void on_notification(NotificationEvent event, const NotificationContext &context)
 {
-	switch (event) {
-	case OBS_FRONTEND_EVENT_RECORDING_STARTED:
-		return "RecordingStarted";
-	case OBS_FRONTEND_EVENT_RECORDING_STOPPED:
-		return "RecordingStopped";
-	case OBS_FRONTEND_EVENT_RECORDING_PAUSED:
-		return "RecordingPaused";
-	case OBS_FRONTEND_EVENT_RECORDING_UNPAUSED:
-		return "RecordingResumed";
-	case OBS_FRONTEND_EVENT_REPLAY_BUFFER_STARTED:
-		return "ReplayBufferStarted";
-	case OBS_FRONTEND_EVENT_REPLAY_BUFFER_STOPPED:
-		return "ReplayBufferStopped";
-	case OBS_FRONTEND_EVENT_REPLAY_BUFFER_SAVED:
-		return "ReplayBufferSaved";
-	case OBS_FRONTEND_EVENT_SCREENSHOT_TAKEN:
-		return "ScreenshotTaken";
-	case OBS_FRONTEND_EVENT_EXIT:
-		return "Exit";
-	default:
-		return "Other";
-	}
+	if (!notification_service)
+		return;
+
+	notification_service->show(event, context);
 }
 
-void on_frontend_event(enum obs_frontend_event event, void *)
+void log_notification_payload(const NotificationPayload &payload)
 {
-	blog(LOG_INFO, "%s frontend event: %s", kLogPrefix, event_name(event));
+	const std::string path = payload.filePath ? payload.filePath->u8string() : std::string{};
+	blog(LOG_INFO, "%s notification payload: %s | %s | path=%s", kLogPrefix,
+		payload.title.c_str(), payload.body.c_str(), path.c_str());
 }
 
 } // namespace
 
 bool obs_module_load(void)
 {
-	obs_frontend_add_event_callback(on_frontend_event, nullptr);
+	notification_service = std::make_unique<NotificationService>(log_notification_payload);
+	event_router = std::make_unique<EventRouter>(on_notification);
+	if (!event_router->start()) {
+		event_router.reset();
+		notification_service.reset();
+		blog(LOG_ERROR, "%s event router startup failed", kLogPrefix);
+		return false;
+	}
+
 	blog(LOG_INFO, "%s plugin loaded", kLogPrefix);
 	return true;
 }
 
 void obs_module_unload(void)
 {
-	obs_frontend_remove_event_callback(on_frontend_event, nullptr);
+	event_router.reset();
+	notification_service.reset();
 	blog(LOG_INFO, "%s plugin unloaded", kLogPrefix);
 }

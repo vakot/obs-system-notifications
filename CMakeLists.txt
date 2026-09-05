@@ -17,7 +17,13 @@ if(OBS_DEV_DIR AND CMAKE_INSTALL_PREFIX_INITIALIZED_TO_DEFAULT)
   set(CMAKE_INSTALL_PREFIX "${OBS_DEV_DIR}" CACHE PATH "Install prefix" FORCE)
 endif()
 
-add_library(${CMAKE_PROJECT_NAME} MODULE src/plugin-main.cpp)
+add_library(
+  ${CMAKE_PROJECT_NAME}
+  MODULE
+    src/notifications/index.cpp
+    src/obs/event-router/index.cpp
+    src/plugin-main.cpp
+)
 target_include_directories(${CMAKE_PROJECT_NAME} PRIVATE src)
 
 find_package(libobs REQUIRED)
@@ -45,3 +51,14 @@ install(
   DESTINATION "${_plugin_destination}"
   OPTIONAL
 )
+
+include(CTest)
+if(BUILD_TESTING)
+  add_executable(
+    obs-system-notifications-notification-test
+    tests/notification-test.cpp
+    src/notifications/index.cpp
+  )
+  target_include_directories(obs-system-notifications-notification-test PRIVATE src)
+  add_test(NAME notification-definition COMMAND obs-system-notifications-notification-test)
+endif()
