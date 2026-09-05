@@ -23,7 +23,7 @@ Set-Location 'C:\Users\vakot\Documents\GitHub\obs-system-notifications'
 & .\scripts\start.ps1
 ```
 
-The script closes only processes whose executable path is the repository's `obs-dev/bin/64bit/obs64.exe`, builds `RelWithDebInfo`, installs the current plugin into `obs-dev`, verifies the DLL, and starts one portable OBS instance with `Sync_Replay_Dev`.
+The script closes only processes whose executable path is the repository's `obs-dev/bin/64bit/obs64.exe`, builds `RelWithDebInfo`, installs the current plugin into `obs-dev`, registers a user-local Start-menu shortcut targeting that same OBS executable with AppUserModelID `OBS Studio`, and launches that shortcut for one portable OBS instance with `Sync_Replay_Dev`. Launching through the shortcut preserves the identity needed for in-process toast activation. The shortcut is a development harness identity bridge; the plugin itself does not spawn or install a helper process.
 
 The script intentionally does not close a separately installed OBS instance.
 
@@ -49,11 +49,25 @@ Logs belong to the portable fixture under `obs-dev/config/obs-studio/logs`.
 With the standalone OBS window open:
 
 - Start recording, pause, resume, and stop. Verify the three state notifications and the saved notification.
-- Click the saved recording notification and verify Explorer selects the exact output file.
+- Click the saved recording notification and verify Explorer selects the exact output file. The development harness uses the OBS-targeting shortcut so this exercises the in-process activation path.
 - Start Replay Buffer, save two replays, and stop it. Verify the start/stop/save notifications and click each saved notification independently.
 - Take a screenshot and click its notification to reveal the exact screenshot.
 - Delete a saved file before clicking its notification. Verify a warning log and no OBS crash.
 - Restart the portable OBS instance and repeat one state transition. Verify one notification per event and no duplicate callback logs.
+
+If notifications do not appear, confirm the identity bridge is present:
+
+```powershell
+Get-StartApps | Where-Object Name -eq 'OBS Studio (obs-system-notifications dev)'
+```
+
+The result should show AppID `OBS Studio`. Remove the harness shortcut when finished:
+
+```powershell
+& .\scripts\register-dev-toast-identity.ps1 `
+    -ObsExecutable (Resolve-Path .\obs-dev\bin\64bit\obs64.exe).Path `
+    -Remove
+```
 
 ## Teardown
 

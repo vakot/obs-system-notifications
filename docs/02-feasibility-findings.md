@@ -40,14 +40,20 @@ This is a real platform constraint. The MVP resolution is to use a shortcut that
 
 References: [Enable desktop toast notifications through an AppUserModelID](https://learn.microsoft.com/en-us/windows/win32/shell/enable-desktop-toast-with-appusermodelid), [Sending a toast notification from the desktop](https://learn.microsoft.com/en-us/windows/win32/shell/quickstart-sending-desktop-toast).
 
+## Backend experiment results
+
+On 2026-09-05, the native backend compiled and loaded in the portable OBS runtime with the repository's Visual Studio/CMake toolchain. The harness registered an OBS-targeting shortcut with AppUserModelID `OBS Studio`; `Get-StartApps` reported the expected app identity while the shortcut target remained the existing `obs-dev/bin/64bit/obs64.exe`.
+
+The OBS UI was exercised through the portable process: recording start/save and replay start/save/stop each produced the expected notification payload logs, including the exact final recording and replay paths. Native toasts were visible with the `OBS Studio (obs-system-notifications dev)` attribution, and clicking a saved-recording toast while OBS remained open produced the in-process activation log and opened Explorer for the exact output path. No toast creation exception or backend failure log was emitted.
+
 ## Open experiment gates
 
 The native backend phase must still verify, on this exact Windows fixture:
 
-1. Toast display with the portable OBS-targeting AUMID shortcut.
-2. In-process activation while OBS remains open.
-3. Independent activation for two saved-file notifications.
-4. Graceful no-op when a saved file is deleted before click.
-5. Backend teardown while notifications are still visible.
+1. Toast display with the portable OBS-targeting AUMID shortcut — verified for recording and replay events.
+2. In-process activation while OBS remains open — verified for a saved recording.
+3. Independent activation for two saved-file notifications — remaining manual matrix coverage.
+4. Graceful no-op when a saved file is deleted before click — remaining manual matrix coverage.
+5. Backend teardown while notifications are still visible — remaining manual matrix coverage.
 
 The absence of a shortcut is not a reason to silently fall back to custom UI or a helper executable; it must remain an explicit installation error/log path.
