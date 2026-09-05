@@ -2,6 +2,7 @@
 
 #include <roapi.h>
 #include <shlobj.h>
+#include <shobjidl.h>
 #include <windows.h>
 
 #include <winrt/Windows.Data.Xml.Dom.h>
@@ -24,7 +25,12 @@ namespace {
 
 constexpr const char *kLogPrefix = "[obs-system-notifications]";
 constexpr wchar_t kAppUserModelId[] = L"OBS Studio";
+constexpr wchar_t kNotificationShortcutName[] = L"OBS System Notifications.lnk";
+constexpr wchar_t kNotificationShortcutDescription[] = L"OBS Studio notification integration";
 constexpr size_t kMaxActiveToasts = 32;
+
+constexpr PROPERTYKEY kAppUserModelIdPropertyKey = {
+	{0x9F4C2855, 0x9F79, 0x4B39, {0xA8, 0xD0, 0xE1, 0xD4, 0x2D, 0xE1, 0xD5, 0xF3}}, 5};
 
 std::wstring escape_xml(std::wstring_view value)
 {
@@ -73,6 +79,59 @@ std::wstring notification_emoji(std::string_view title)
 	if (title == "Screenshot saved")
 		return L"\U0001F4F8";
 	return {};
+}
+
+bool ensure_notification_identity()
+{
+	try {
+		wchar_t executablePath[MAX_PATH] = {};
+		const DWORD executableLength = GetModuleFileNameW(nullptr, executablePath, ARRAYSIZE(executablePath));
+		if (executableLength == 0 || executableLength >= ARRAYSIZE(executablePath)) {
+			blog(LOG_ERROR, "%s failed to resolve OBS executable path: %lu", kLogPrefix,
+				static_cast<unsigned long>(GetLastError()));
+			return false;
+		}
+
+		PWSTR programsPath = nullptr;
+		const HRESULT folderResult =
+			SHGetKnownFolderPath(FOLDERID_Programs, KF_FLAG_DEFAULT, nullptr, &programsPath);
+		if (FAILED(folderResult) || !programsPath) {
+			blog(LOG_ERROR, "%s failed to resolve Start menu path: 0x%08lx", kLogPrefix,
+				static_cast<unsigned long>(folderResult));
+			return false;
+		}
+
+		const std::filesystem::path shortcutPath = std::filesystem::path{programsPath} /
+			kNotificationShortcutName;
+		CoTaskMemFree(programsPath);
+
+		winrt::com_ptr<IShellLinkW> shellLink;
+		winrt::check_hresult(CoCreateInstance(CLSID_ShellLink, nullptr, CLSCTX_INPROC_SERVER,
+			IID_PPV_ARGS(shellLink.put())));
+		winrt::check_hresult(shellLink->SetPath(executablePath));
+		winrt::check_hresult(shellLink->SetWorkingDirectory(std::filesystem::path{executablePath}.parent_path().c_str()));
+		winrt::check_hresult(shellLink->SetArguments(L""));
+		winrt::check_hresult(shellLink->SetDescription(kNotificationShortcutDescription));
+
+		winrt::com_ptr<IPropertyStore> propertyStore;
+		winrt::check_hresult(shellLink->QueryInterface(IID_PPV_ARGS(propertyStore.put())));
+		PROPVARIANT appUserModelId{};
+		appUserModelId.vt = VT_LPWSTR;
+		appUserModelId.pwszVal = const_cast<PWSTR>(kAppUserModelId);
+		winrt::check_hresult(propertyStore->SetValue(kAppUserModelIdPropertyKey, appUserModelId));
+		winrt::check_hresult(propertyStore->Commit());
+
+		winrt::com_ptr<IPersistFile> persistFile;
+		winrt::check_hresult(shellLink->QueryInterface(IID_PPV_ARGS(persistFile.put())));
+		winrt::check_hresult(persistFile->Save(shortcutPath.c_str(), TRUE));
+		blog(LOG_INFO, "%s notification identity shortcut ready: %ls", kLogPrefix,
+			shortcutPath.c_str());
+		return true;
+	} catch (const winrt::hresult_error &error) {
+		blog(LOG_ERROR, "%s notification identity setup failed: 0x%08lx", kLogPrefix,
+			static_cast<unsigned long>(error.code().value));
+		return false;
+	}
 }
 
 std::wstring to_xml(const NotificationPayload &payload)
@@ -176,6 +235,14 @@ bool WindowsNotificationBackend::start()
 	impl_->ownsRoInitialization = SUCCEEDED(ro_result);
 
 	try {
+		if (!ensure_notification_identity()) {
+			if (impl_->ownsRoInitialization) {
+				RoUninitialize();
+				impl_->ownsRoInitialization = false;
+			}
+			return false;
+		}
+
 		impl_->notifier = winrt::Windows::UI::Notifications::ToastNotificationManager::CreateToastNotifier(
 			winrt::hstring{kAppUserModelId});
 		blog(LOG_INFO, "%s Windows notification setting: %d", kLogPrefix,

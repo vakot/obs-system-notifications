@@ -36,7 +36,7 @@ Reference source: [OBS Studio 32.2.1 `obs-frontend-api.h`](https://github.com/ob
 
 Microsoft's desktop-toast documentation requires a valid AppUserModelID on a Start-menu/All Programs shortcut. `Get-StartApps` did not report an OBS entry on this machine; the existing startup shortcut is not an AUMID-backed OBS app registration. A portable executable by itself is therefore not a sufficient desktop-toast identity.
 
-This is a real platform constraint. The MVP resolution is to use a shortcut that targets the existing OBS executable and carries the OBS notification identity. The development harness may create that registration for the portable fixture; a production install/update path must provide the equivalent OBS-owned shortcut. No plugin executable, helper process, or separate notification app is allowed.
+This is a real platform constraint. The MVP resolution is to use a shortcut that targets the existing OBS executable and carries the OBS notification identity. The plugin now creates or repairs that user-local shortcut when the Windows backend starts, so a manually installed release DLL has the same identity bridge as the portable fixture. No plugin executable, helper process, or separate notification app is allowed.
 
 References: [Enable desktop toast notifications through an AppUserModelID](https://learn.microsoft.com/en-us/windows/win32/shell/enable-desktop-toast-with-appusermodelid), [Sending a toast notification from the desktop](https://learn.microsoft.com/en-us/windows/win32/shell/quickstart-sending-desktop-toast).
 
@@ -46,7 +46,7 @@ On 2026-09-05, the native backend compiled and loaded in the portable OBS runtim
 
 The OBS UI was exercised through the portable process: recording start/save and replay start/save/stop each produced the expected notification payload logs, including the exact final recording and replay paths. Native toasts were visible with the `OBS System Notifications` attribution, and clicking a saved-recording toast while OBS remained open produced the in-process activation log and opened Explorer for the exact output path. No toast creation exception or backend failure log was emitted.
 
-The hardening pass rebuilt and reinstalled the plugin through `scripts/start.ps1`, restarted the portable process, and repeated recording/replay smoke events without a crash or delivery-failure log. Backend initialization is non-fatal to plugin load; activation contexts are removed on click, dismissal, teardown, and bounded overflow.
+The hardening pass rebuilt and reinstalled the plugin through `scripts/start.ps1`, restarted the portable process, and repeated recording/replay smoke events without a crash or delivery-failure log. A direct launch without the harness shortcut also created the user-local identity shortcut before `CreateToastNotifier`, confirming the production/manual-install path. Backend initialization is non-fatal to plugin load; activation contexts are removed on click, dismissal, teardown, and bounded overflow.
 
 Review feedback follow-up: notifications request silent audio in the toast XML. The native unpackaged plugin does not carry a packaged image-asset URI for a Lucide icon, so the display title uses stable Unicode emoji as the lightweight icon fallback. File activation uses Shell's PIDL-based selection API instead of Explorer command-line parsing, so the callback targets the exact saved file.
 
@@ -60,4 +60,4 @@ The native backend phase must still verify, on this exact Windows fixture:
 4. Graceful no-op when a saved file is deleted before click — remaining manual matrix coverage.
 5. Backend teardown while notifications are still visible — remaining manual matrix coverage.
 
-The absence of a shortcut is not a reason to silently fall back to custom UI or a helper executable; it must remain an explicit installation error/log path.
+If shortcut creation fails, the backend remains non-fatal and records an explicit identity-setup error; it does not silently fall back to custom UI or a helper executable.
