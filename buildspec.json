@@ -32,7 +32,7 @@
     },
     "name": "obs-system-notifications",
     "displayName": "OBS System Notifications",
-    "version": "0.0.1",
+    "version": "0.0.2",
     "author": "vakot",
     "website": "https://github.com/vakot/obs-system-notifications",
     "email": ""
