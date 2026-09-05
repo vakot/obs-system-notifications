@@ -17,6 +17,8 @@ $cmake = 'C:\Program Files (x86)\Microsoft Visual Studio\2022\BuildTools\Common7
 $buildDirectory = Join-Path $repositoryRoot 'build_x64'
 $executable = (Resolve-Path -LiteralPath (Join-Path $resolvedObsRoot 'bin\64bit\obs64.exe')).Path
 $plugin = Join-Path $resolvedObsRoot 'obs-plugins\64bit\obs-system-notifications.dll'
+$toastIdentityScript = Join-Path $PSScriptRoot 'register-dev-toast-identity.ps1'
+$toastShortcut = Join-Path $env:APPDATA 'Microsoft\Windows\Start Menu\Programs\OBS Studio (obs-system-notifications dev).lnk'
 
 function Get-PortableObsProcesses {
     @(Get-CimInstance Win32_Process -Filter "Name = 'obs64.exe'" |
@@ -80,9 +82,9 @@ finally {
 if (-not (Test-Path -LiteralPath $plugin -PathType Leaf)) { throw "Installed plugin was not found: $plugin" }
 Write-Host "Updated standalone plugin: $plugin"
 
-$started = Start-Process -FilePath $executable `
-    -WorkingDirectory (Split-Path -Parent $executable) `
-    -ArgumentList @('--portable', '--profile', $Profile) `
-    -PassThru
+& $toastIdentityScript -ObsExecutable $executable -Profile $Profile
+
+if (-not (Test-Path -LiteralPath $toastShortcut -PathType Leaf)) { throw "Toast identity shortcut was not created: $toastShortcut" }
+$started = Start-Process -FilePath $toastShortcut -PassThru
 
 Write-Host "Started standalone OBS (PID $($started.Id)) with profile '$Profile'."

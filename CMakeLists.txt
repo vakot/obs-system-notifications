@@ -21,6 +21,7 @@ add_library(
   ${CMAKE_PROJECT_NAME}
   MODULE
     src/notifications/index.cpp
+    src/notifications/platform/windows.cpp
     src/obs/event-router/index.cpp
     src/plugin-main.cpp
 )
@@ -29,6 +30,7 @@ target_include_directories(${CMAKE_PROJECT_NAME} PRIVATE src)
 find_package(libobs REQUIRED)
 find_package(obs-frontend-api REQUIRED)
 target_link_libraries(${CMAKE_PROJECT_NAME} PRIVATE OBS::libobs OBS::obs-frontend-api)
+target_link_libraries(${CMAKE_PROJECT_NAME} PRIVATE windowsapp shell32)
 
 set_target_properties(
   ${CMAKE_PROJECT_NAME}
