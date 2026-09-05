@@ -1,0 +1,33 @@
+{
+  "version": 8,
+  "cmakeMinimumRequired": {
+    "major": 3,
+    "minor": 28,
+    "patch": 0
+  },
+  "configurePresets": [
+    {
+      "name": "windows-x64",
+      "displayName": "Windows x64",
+      "description": "Build the Windows x64 OBS plugin and install into obs-dev",
+      "binaryDir": "${sourceDir}/build_x64",
+      "generator": "Visual Studio 17 2022",
+      "architecture": "x64",
+      "cacheVariables": {
+        "OBS_DEV_DIR": "${sourceDir}/obs-dev",
+        "CMAKE_INSTALL_PREFIX": "${sourceDir}/obs-dev"
+      },
+      "warnings": {
+        "dev": true,
+        "deprecated": true
+      }
+    }
+  ],
+  "buildPresets": [
+    {
+      "name": "windows-x64",
+      "configurePreset": "windows-x64",
+      "configuration": "RelWithDebInfo"
+    }
+  ]
+}
