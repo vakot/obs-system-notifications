@@ -30,7 +30,7 @@ target_include_directories(${CMAKE_PROJECT_NAME} PRIVATE src)
 find_package(libobs REQUIRED)
 find_package(obs-frontend-api REQUIRED)
 target_link_libraries(${CMAKE_PROJECT_NAME} PRIVATE OBS::libobs OBS::obs-frontend-api)
-target_link_libraries(${CMAKE_PROJECT_NAME} PRIVATE windowsapp shell32)
+target_link_libraries(${CMAKE_PROJECT_NAME} PRIVATE windowsapp shell32 propsys)
 
 set_target_properties(
   ${CMAKE_PROJECT_NAME}

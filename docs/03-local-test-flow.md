@@ -23,7 +23,7 @@ Set-Location 'C:\Users\vakot\Documents\GitHub\obs-system-notifications'
 & .\scripts\start.ps1
 ```
 
-The script closes only processes whose executable path is the repository's `obs-dev/bin/64bit/obs64.exe`, builds `RelWithDebInfo`, installs the current plugin into `obs-dev`, registers a user-local Start-menu shortcut targeting that same OBS executable with AppUserModelID `OBS Studio`, and launches that shortcut for one portable OBS instance with `Sync_Replay_Dev`. Launching through the shortcut preserves the identity needed for in-process toast activation. The shortcut is a development harness identity bridge; the plugin itself does not spawn or install a helper process.
+The script closes only processes whose executable path is the repository's `obs-dev/bin/64bit/obs64.exe`, builds `RelWithDebInfo`, installs the current plugin into `obs-dev`, registers a user-local Start-menu shortcut targeting that same OBS executable with AppUserModelID `OBS Studio`, and launches that shortcut for one portable OBS instance with `Sync_Replay_Dev`. Launching through the shortcut preserves the identity needed for in-process toast activation. The plugin also creates or repairs this identity shortcut during backend startup, so direct/manual OBS launches exercise the same production path. The plugin does not spawn or install a helper process.
 
 The script intentionally does not close a separately installed OBS instance.
 
@@ -62,7 +62,7 @@ If notifications do not appear, confirm the identity bridge is present:
 Get-StartApps | Where-Object Name -eq 'OBS System Notifications'
 ```
 
-The result should show AppID `OBS Studio`. Remove the harness shortcut when finished:
+The result should show AppID `OBS Studio`. The shortcut is user-local and is recreated by the plugin when notifications initialize. Remove it only when you intentionally want to reset the local toast identity:
 
 ```powershell
 & .\scripts\register-dev-toast-identity.ps1 `
