@@ -14,16 +14,23 @@ param(
 
 $ErrorActionPreference = 'Stop'
 $appUserModelId = 'OBS Studio'
-$shortcutPath = Join-Path $env:APPDATA 'Microsoft\Windows\Start Menu\Programs\OBS Studio (obs-system-notifications dev).lnk'
+$notificationLabel = 'OBS System Notifications'
+$shortcutPath = Join-Path $env:APPDATA "Microsoft\Windows\Start Menu\Programs\${notificationLabel}.lnk"
+$legacyShortcutPath = Join-Path $env:APPDATA 'Microsoft\Windows\Start Menu\Programs\OBS Studio (obs-system-notifications dev).lnk'
 
 if ($Remove) {
-    if (Test-Path -LiteralPath $shortcutPath) {
-        Remove-Item -LiteralPath $shortcutPath -Force
-        Write-Host "Removed dev toast shortcut: $shortcutPath"
-    } else {
-        Write-Host "Dev toast shortcut is not present: $shortcutPath"
+    foreach ($path in @($shortcutPath, $legacyShortcutPath)) {
+        if (Test-Path -LiteralPath $path) {
+            Remove-Item -LiteralPath $path -Force
+            Write-Host "Removed toast shortcut: $path"
+        }
     }
     return
+}
+
+if (Test-Path -LiteralPath $legacyShortcutPath) {
+    Remove-Item -LiteralPath $legacyShortcutPath -Force
+    Write-Host "Removed legacy toast shortcut: $legacyShortcutPath"
 }
 
 $resolvedExecutable = (Resolve-Path -LiteralPath $ObsExecutable).Path
@@ -109,7 +116,7 @@ namespace DevToastShortcut {
             Check(shellLink.SetPath(targetPath));
             Check(shellLink.SetWorkingDirectory(workingDirectory));
             Check(shellLink.SetArguments(arguments));
-            Check(shellLink.SetDescription("OBS Studio portable development runtime for obs-system-notifications"));
+            Check(shellLink.SetDescription("OBS Studio notification integration"));
 
             var propertyKey = new PROPERTYKEY {
                 fmtid = Guid.Parse("9F4C2855-9F79-4B39-A8D0-E1D42DE1D5F3"),
@@ -140,6 +147,6 @@ namespace DevToastShortcut {
     $workingDirectory,
     "--portable --profile `"$Profile`"",
     $appUserModelId)
-Write-Host "Registered dev toast shortcut: $shortcutPath"
+Write-Host "Registered toast shortcut: $shortcutPath"
 Write-Host "Target: $resolvedExecutable"
 Write-Host "AppUserModelID: $appUserModelId"

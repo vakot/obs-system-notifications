@@ -18,7 +18,7 @@ $buildDirectory = Join-Path $repositoryRoot 'build_x64'
 $executable = (Resolve-Path -LiteralPath (Join-Path $resolvedObsRoot 'bin\64bit\obs64.exe')).Path
 $plugin = Join-Path $resolvedObsRoot 'obs-plugins\64bit\obs-system-notifications.dll'
 $toastIdentityScript = Join-Path $PSScriptRoot 'register-dev-toast-identity.ps1'
-$toastShortcut = Join-Path $env:APPDATA 'Microsoft\Windows\Start Menu\Programs\OBS Studio (obs-system-notifications dev).lnk'
+$toastShortcut = Join-Path $env:APPDATA 'Microsoft\Windows\Start Menu\Programs\OBS System Notifications.lnk'
 
 function Get-PortableObsProcesses {
     @(Get-CimInstance Win32_Process -Filter "Name = 'obs64.exe'" |

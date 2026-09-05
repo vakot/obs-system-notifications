@@ -44,9 +44,11 @@ References: [Enable desktop toast notifications through an AppUserModelID](https
 
 On 2026-09-05, the native backend compiled and loaded in the portable OBS runtime with the repository's Visual Studio/CMake toolchain. The harness registered an OBS-targeting shortcut with AppUserModelID `OBS Studio`; `Get-StartApps` reported the expected app identity while the shortcut target remained the existing `obs-dev/bin/64bit/obs64.exe`.
 
-The OBS UI was exercised through the portable process: recording start/save and replay start/save/stop each produced the expected notification payload logs, including the exact final recording and replay paths. Native toasts were visible with the `OBS Studio (obs-system-notifications dev)` attribution, and clicking a saved-recording toast while OBS remained open produced the in-process activation log and opened Explorer for the exact output path. No toast creation exception or backend failure log was emitted.
+The OBS UI was exercised through the portable process: recording start/save and replay start/save/stop each produced the expected notification payload logs, including the exact final recording and replay paths. Native toasts were visible with the `OBS System Notifications` attribution, and clicking a saved-recording toast while OBS remained open produced the in-process activation log and opened Explorer for the exact output path. No toast creation exception or backend failure log was emitted.
 
 The hardening pass rebuilt and reinstalled the plugin through `scripts/start.ps1`, restarted the portable process, and repeated recording/replay smoke events without a crash or delivery-failure log. Backend initialization is non-fatal to plugin load; activation contexts are removed on click, dismissal, teardown, and bounded overflow.
+
+Review feedback follow-up: notifications request silent audio in the toast XML. The native unpackaged plugin does not carry a packaged image-asset URI for a Lucide icon, so the display title uses stable Unicode emoji as the lightweight icon fallback. File activation uses Shell's PIDL-based selection API instead of Explorer command-line parsing, so the callback targets the exact saved file.
 
 ## Open experiment gates
 
