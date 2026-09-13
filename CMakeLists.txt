@@ -1,12 +1,12 @@
 cmake_minimum_required(VERSION 3.28...3.30)
 
-if(NOT WIN32 AND NOT CMAKE_SYSTEM_NAME STREQUAL "Linux")
-  message(FATAL_ERROR "obs-system-notifications supports Windows and Linux")
-endif()
-
 include("${CMAKE_CURRENT_SOURCE_DIR}/cmake/common/bootstrap.cmake" NO_POLICY_SCOPE)
 
 project(${_name} VERSION ${_version})
+
+if(NOT WIN32 AND NOT CMAKE_SYSTEM_NAME STREQUAL "Linux")
+  message(FATAL_ERROR "obs-system-notifications supports Windows and Linux")
+endif()
 
 set(OBS_DEV_DIR "" CACHE PATH "Portable OBS directory used by the local install target")
 
