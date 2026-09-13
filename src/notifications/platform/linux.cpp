@@ -282,30 +282,30 @@ struct LinuxNotificationBackend::Impl {
 		dbus_message_iter_close_container(&arguments, &hints);
 		dbus_message_iter_append_basic(&arguments, DBUS_TYPE_INT32, &expire_timeout);
 
-	DBusPendingCall *pending = nullptr;
-	if (!dbus_connection_send_with_reply(state->connection, message, &pending, -1) || !pending) {
-		blog(LOG_WARNING, "%s failed to send desktop notification request", kLogPrefix);
-		dbus_message_unref(message);
-		return;
-	}
+		DBusPendingCall *pending = nullptr;
+		if (!dbus_connection_send_with_reply(state->connection, message, &pending, -1) || !pending) {
+			blog(LOG_WARNING, "%s failed to send desktop notification request", kLogPrefix);
+			dbus_message_unref(message);
+			return;
+		}
 
-	auto pending_data = std::make_unique<PendingNotification>();
-	pending_data->state = state;
-	pending_data->file_path = payload.filePath;
-	PendingNotification *pending_data_ptr = pending_data.release();
-	if (!dbus_pending_call_set_notify(pending, &Impl::notification_reply, pending_data_ptr,
-		&destroy_pending_notification)) {
-		blog(LOG_WARNING, "%s failed to track desktop notification response", kLogPrefix);
-		destroy_pending_notification(pending_data_ptr);
-		dbus_pending_call_cancel(pending);
+		auto pending_data = std::make_unique<PendingNotification>();
+		pending_data->state = state;
+		pending_data->file_path = payload.filePath;
+		PendingNotification *pending_data_ptr = pending_data.release();
+		if (!dbus_pending_call_set_notify(pending, &Impl::notification_reply, pending_data_ptr,
+			&destroy_pending_notification)) {
+			blog(LOG_WARNING, "%s failed to track desktop notification response", kLogPrefix);
+			destroy_pending_notification(pending_data_ptr);
+			dbus_pending_call_cancel(pending);
+			dbus_pending_call_unref(pending);
+			dbus_message_unref(message);
+			return;
+		}
+
 		dbus_pending_call_unref(pending);
 		dbus_message_unref(message);
-		return;
-	}
-
-	dbus_pending_call_unref(pending);
-	dbus_message_unref(message);
-	dbus_connection_flush(state->connection);
+		dbus_connection_flush(state->connection);
 	}
 
 	void dispatch()
