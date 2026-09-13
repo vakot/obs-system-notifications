@@ -6,7 +6,10 @@
 
 #include <atomic>
 #include <cctype>
+#include <chrono>
+#include <condition_variable>
 #include <cstdint>
+#include <deque>
 #include <filesystem>
 #include <memory>
 #include <mutex>
@@ -157,6 +160,9 @@ struct LinuxNotificationState {
 struct LinuxNotificationBackend::Impl {
 	std::shared_ptr<LinuxNotificationState> state = std::make_shared<LinuxNotificationState>();
 	std::thread dispatch_thread;
+	std::mutex queue_mutex;
+	std::condition_variable queue_condition;
+	std::deque<NotificationPayload> pending_notifications;
 	bool started = false;
 
 	static void notification_reply(DBusPendingCall *pending, void *user_data)
@@ -239,9 +245,87 @@ struct LinuxNotificationBackend::Impl {
 		return DBUS_HANDLER_RESULT_NOT_YET_HANDLED;
 	}
 
+	void send_notification(const NotificationPayload &payload)
+	{
+		DBusMessage *message = dbus_message_new_method_call("org.freedesktop.Notifications",
+			"/org/freedesktop/Notifications", kNotificationInterface, "Notify");
+		if (!message) {
+			blog(LOG_WARNING, "%s failed to allocate the desktop notification request", kLogPrefix);
+			return;
+		}
+
+		const char *application_name = "OBS Studio";
+		uint32_t replaces_id = 0;
+		const char *application_icon = "";
+		const char *summary = payload.title.c_str();
+		const char *body = payload.body.c_str();
+		int32_t expire_timeout = -1;
+		DBusMessageIter arguments;
+		DBusMessageIter actions;
+		DBusMessageIter hints;
+		dbus_message_iter_init_append(message, &arguments);
+		dbus_message_iter_append_basic(&arguments, DBUS_TYPE_STRING, &application_name);
+		dbus_message_iter_append_basic(&arguments, DBUS_TYPE_UINT32, &replaces_id);
+		dbus_message_iter_append_basic(&arguments, DBUS_TYPE_STRING, &application_icon);
+		dbus_message_iter_append_basic(&arguments, DBUS_TYPE_STRING, &summary);
+		dbus_message_iter_append_basic(&arguments, DBUS_TYPE_STRING, &body);
+		dbus_message_iter_open_container(&arguments, DBUS_TYPE_ARRAY, DBUS_TYPE_STRING_AS_STRING,
+			&actions);
+		if (payload.filePath) {
+			const char *action = "default";
+			const char *label = "Show in File Manager";
+			dbus_message_iter_append_basic(&actions, DBUS_TYPE_STRING, &action);
+			dbus_message_iter_append_basic(&actions, DBUS_TYPE_STRING, &label);
+		}
+		dbus_message_iter_close_container(&arguments, &actions);
+		dbus_message_iter_open_container(&arguments, DBUS_TYPE_ARRAY, "{sv}", &hints);
+		dbus_message_iter_close_container(&arguments, &hints);
+		dbus_message_iter_append_basic(&arguments, DBUS_TYPE_INT32, &expire_timeout);
+
+	DBusPendingCall *pending = nullptr;
+	if (!dbus_connection_send_with_reply(state->connection, message, &pending, -1) || !pending) {
+		blog(LOG_WARNING, "%s failed to send desktop notification request", kLogPrefix);
+		dbus_message_unref(message);
+		return;
+	}
+
+	auto pending_data = std::make_unique<PendingNotification>();
+	pending_data->state = state;
+	pending_data->file_path = payload.filePath;
+	PendingNotification *pending_data_ptr = pending_data.release();
+	if (!dbus_pending_call_set_notify(pending, &Impl::notification_reply, pending_data_ptr,
+		&destroy_pending_notification)) {
+		blog(LOG_WARNING, "%s failed to track desktop notification response", kLogPrefix);
+		destroy_pending_notification(pending_data_ptr);
+		dbus_pending_call_cancel(pending);
+		dbus_pending_call_unref(pending);
+		dbus_message_unref(message);
+		return;
+	}
+
+	dbus_pending_call_unref(pending);
+	dbus_message_unref(message);
+	dbus_connection_flush(state->connection);
+	}
+
 	void dispatch()
 	{
-		while (!state->stopping && dbus_connection_read_write_dispatch(state->connection, 100)) {
+		while (!state->stopping) {
+			std::deque<NotificationPayload> notifications;
+			{
+				std::unique_lock lock(queue_mutex);
+				queue_condition.wait_for(lock, std::chrono::milliseconds{100},
+					[this] { return state->stopping || !pending_notifications.empty(); });
+				if (state->stopping)
+					return;
+				notifications.swap(pending_notifications);
+			}
+
+			for (const NotificationPayload &payload : notifications)
+				send_notification(payload);
+
+			if (!dbus_connection_read_write_dispatch(state->connection, 100))
+				return;
 		}
 	}
 };
@@ -313,6 +397,7 @@ void LinuxNotificationBackend::stop()
 		return;
 
 	impl_->state->stopping = true;
+	impl_->queue_condition.notify_one();
 	dbus_connection_close(impl_->state->connection);
 	if (impl_->dispatch_thread.joinable())
 		impl_->dispatch_thread.join();
@@ -332,63 +417,11 @@ void LinuxNotificationBackend::show(const NotificationPayload &payload)
 	if (!impl_->started)
 		return;
 
-	DBusMessage *message = dbus_message_new_method_call("org.freedesktop.Notifications",
-		"/org/freedesktop/Notifications", kNotificationInterface, "Notify");
-	if (!message) {
-		blog(LOG_WARNING, "%s failed to allocate the desktop notification request", kLogPrefix);
-		return;
+	{
+		std::lock_guard lock(impl_->queue_mutex);
+		if (impl_->state->stopping)
+			return;
+		impl_->pending_notifications.push_back(payload);
 	}
-
-	const char *application_name = "OBS Studio";
-	uint32_t replaces_id = 0;
-	const char *application_icon = "";
-	const char *summary = payload.title.c_str();
-	const char *body = payload.body.c_str();
-	int32_t expire_timeout = -1;
-	DBusMessageIter arguments;
-	DBusMessageIter actions;
-	DBusMessageIter hints;
-	dbus_message_iter_init_append(message, &arguments);
-	dbus_message_iter_append_basic(&arguments, DBUS_TYPE_STRING, &application_name);
-	dbus_message_iter_append_basic(&arguments, DBUS_TYPE_UINT32, &replaces_id);
-	dbus_message_iter_append_basic(&arguments, DBUS_TYPE_STRING, &application_icon);
-	dbus_message_iter_append_basic(&arguments, DBUS_TYPE_STRING, &summary);
-	dbus_message_iter_append_basic(&arguments, DBUS_TYPE_STRING, &body);
-	dbus_message_iter_open_container(&arguments, DBUS_TYPE_ARRAY, DBUS_TYPE_STRING_AS_STRING,
-		&actions);
-	if (payload.filePath) {
-		const char *action = "default";
-		const char *label = "Show in File Manager";
-		dbus_message_iter_append_basic(&actions, DBUS_TYPE_STRING, &action);
-		dbus_message_iter_append_basic(&actions, DBUS_TYPE_STRING, &label);
-	}
-	dbus_message_iter_close_container(&arguments, &actions);
-	dbus_message_iter_open_container(&arguments, DBUS_TYPE_ARRAY, "{sv}", &hints);
-	dbus_message_iter_close_container(&arguments, &hints);
-	dbus_message_iter_append_basic(&arguments, DBUS_TYPE_INT32, &expire_timeout);
-
-	DBusPendingCall *pending = nullptr;
-	if (!dbus_connection_send_with_reply(impl_->state->connection, message, &pending, -1) || !pending) {
-		blog(LOG_WARNING, "%s failed to send desktop notification request", kLogPrefix);
-		dbus_message_unref(message);
-		return;
-	}
-
-	auto pending_data = std::make_unique<PendingNotification>();
-	pending_data->state = impl_->state;
-	pending_data->file_path = payload.filePath;
-	PendingNotification *pending_data_ptr = pending_data.release();
-	if (!dbus_pending_call_set_notify(pending, &Impl::notification_reply, pending_data_ptr,
-		&destroy_pending_notification)) {
-		blog(LOG_WARNING, "%s failed to track desktop notification response", kLogPrefix);
-		destroy_pending_notification(pending_data_ptr);
-		dbus_pending_call_cancel(pending);
-		dbus_pending_call_unref(pending);
-		dbus_message_unref(message);
-		return;
-	}
-
-	dbus_pending_call_unref(pending);
-	dbus_connection_flush(impl_->state->connection);
-	dbus_message_unref(message);
+	impl_->queue_condition.notify_one();
 }
