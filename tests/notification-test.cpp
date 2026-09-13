@@ -1,4 +1,3 @@
-#include <cassert>
 #include <filesystem>
 #include <string>
 
@@ -26,31 +25,29 @@ int main()
 
 	for (const ExpectedDefinition &expected : definitions) {
 		const NotificationDefinition &definition = notification_definition(expected.event);
-		assert(std::string{definition.title} == expected.title);
-		assert(std::string{definition.body} == expected.body);
-		assert(definition.clickAction == expected.clickAction);
+		if (std::string{definition.title} != expected.title || std::string{definition.body} != expected.body ||
+		    definition.clickAction != expected.clickAction)
+			return 1;
 
 		const NotificationEvent event = expected.event;
 		if (expected.clickAction != ClickAction::None)
 			continue;
 
 		const auto payload = make_notification_payload(event);
-		assert(payload);
-		assert(payload->title == expected.title);
-		assert(payload->body == expected.body);
-		assert(payload->clickAction == ClickAction::None);
-		assert(!payload->filePath);
+		if (!payload || payload->title != expected.title || payload->body != expected.body ||
+		    payload->clickAction != ClickAction::None || payload->filePath)
+			return 1;
 	}
 
 	const NotificationContext context{std::filesystem::path{L"C:\\OBS\\Replay A.mkv"}};
-	for (const NotificationEvent event : {NotificationEvent::RecordingSaved,
-									NotificationEvent::ReplaySaved,
-									NotificationEvent::ScreenshotSaved}) {
-		assert(!make_notification_payload(event));
+	for (const NotificationEvent event :
+	     {NotificationEvent::RecordingSaved, NotificationEvent::ReplaySaved,
+	      NotificationEvent::ScreenshotSaved}) {
+		if (make_notification_payload(event))
+			return 1;
 		const auto payload = make_notification_payload(event, context);
-		assert(payload);
-		assert(payload->clickAction == ClickAction::RevealFile);
-		assert(payload->filePath == context.filePath);
+		if (!payload || payload->clickAction != ClickAction::RevealFile || payload->filePath != context.filePath)
+			return 1;
 	}
 
 	return 0;
