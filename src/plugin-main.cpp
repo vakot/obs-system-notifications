@@ -5,7 +5,11 @@
 #include <string>
 
 #include <notifications/index.hpp>
+#if defined(_WIN32)
 #include <notifications/platform/windows.hpp>
+#elif defined(__linux__)
+#include <notifications/platform/linux.hpp>
+#endif
 #include <obs/event-router/index.hpp>
 
 OBS_DECLARE_MODULE()
@@ -14,8 +18,14 @@ namespace {
 
 constexpr const char *kLogPrefix = "[obs-system-notifications]";
 
+#if defined(_WIN32)
+using PlatformNotificationBackend = WindowsNotificationBackend;
+#elif defined(__linux__)
+using PlatformNotificationBackend = LinuxNotificationBackend;
+#endif
+
 std::unique_ptr<NotificationService> notification_service;
-std::unique_ptr<WindowsNotificationBackend> notification_backend;
+std::unique_ptr<PlatformNotificationBackend> notification_backend;
 std::unique_ptr<EventRouter> event_router;
 
 void on_notification(NotificationEvent event, const NotificationContext &context)
@@ -37,7 +47,7 @@ void log_notification_payload(const NotificationPayload &payload)
 
 bool obs_module_load(void)
 {
-	notification_backend = std::make_unique<WindowsNotificationBackend>();
+	notification_backend = std::make_unique<PlatformNotificationBackend>();
 	if (!notification_backend->start()) {
 		blog(LOG_WARNING, "%s notification backend unavailable; continuing without system toasts", kLogPrefix);
 	}

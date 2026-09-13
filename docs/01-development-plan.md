@@ -4,18 +4,18 @@ This plan turns `tmp/poc-implementation-plan.md` into independently reviewable i
 
 ## MVP contract
 
-Version `0.0.1` is a Windows x64 native OBS plugin with one thin path:
+Version `0.0.1` is a native OBS plugin with one thin path:
 
 ```text
 OBS frontend event -> event router -> fixed notification definition
-                   -> Windows native notification -> optional file reveal
+                   -> platform-native notification -> optional file reveal
 ```
 
-The MVP supports recording started/paused/resumed/saved, Replay Buffer started/stopped/saved, and screenshot saved. Saved-file notifications carry the exact path supplied by OBS and reveal that file in Explorer when clicked. There is no settings UI, configuration, localization, helper process, IPC, custom rendering, or cross-platform code.
+The MVP supports recording started/paused/resumed/saved, Replay Buffer started/stopped/saved, and screenshot saved. Saved-file notifications carry the exact path supplied by OBS and reveal that file in the platform file manager when clicked. There is no settings UI, configuration, localization, helper process, IPC, or custom rendering.
 
 ## Platform decisions and gates
 
-- Target the supplied standalone OBS 32.2.1 runtime on Windows 11 x64. The first supported Windows API baseline is Windows 10 2004 or newer.
+- Target the supplied standalone OBS 32.2.1 runtime on Windows 11 x64 and Linux desktop environments with a user D-Bus session. The first supported Windows API baseline is Windows 10 2004 or newer.
 - Use the exact OBS frontend APIs confirmed from the OBS 32.2.1 source tree: frontend event callbacks, `obs_frontend_get_last_recording()`, `obs_frontend_get_last_replay()`, and `obs_frontend_get_last_screenshot()`.
 - Use a WinRT desktop toast backend with per-notification activation context and Shell Explorer reveal. The backend must not spawn a helper process.
 - Windows desktop toasts require an AppUserModelID-backed shortcut. The plugin must keep the OBS process identity: the identity bridge may only register/repair a shortcut targeting the existing OBS executable; it must not add a plugin executable or a second app identity. The portable development harness may prepare the shortcut before launch, and the backend repairs it for direct/manual installs. The backend phase cannot pass until both notification display and click activation are verified with this arrangement.
@@ -43,7 +43,7 @@ Exit gate: `obs-dev` starts successfully without touching another OBS installati
 
 ### Phase 1 — Native plugin skeleton
 
-Create the smallest Windows-only CMake module using `OBS::libobs` and `OBS::obs-frontend-api`. Add `OBS_DECLARE_MODULE`, `obs_module_load`, `obs_module_unload`, one frontend callback registration/removal, and the `[obs-system-notifications]` log prefix. Install only the DLL and required locale data under `obs-plugins/64bit` and `data/obs-plugins/obs-system-notifications`.
+Create the smallest native CMake module using `OBS::libobs` and `OBS::obs-frontend-api`. Add `OBS_DECLARE_MODULE`, `obs_module_load`, `obs_module_unload`, one frontend callback registration/removal, and the `[obs-system-notifications]` log prefix. Install the plugin using the platform's OBS plugin directory conventions.
 
 Exit gate: the DLL builds as x64, loads in standalone OBS, logs load and unload, and survives repeated start/stop cycles with no stale callback.
 
@@ -53,21 +53,21 @@ Introduce the small internal event model and `NotificationContext`. Map frontend
 
 Exit gate: every supported event maps deterministically, state events have no file context, file events have the correct final path, and missing/invalid paths become logged no-ops.
 
-### Phase 3 — Windows notification backend
+### Phase 3 — Platform notification backends
 
-Implement native Windows toast creation without custom rendering. Prove the AUMID-backed OBS shortcut arrangement in the portable fixture, preserve each notification's own activation context, and reveal files with Explorer. Keep backend failures non-fatal and log HRESULT/Win32 failures with the plugin prefix.
+Implement native Windows toast creation and Linux freedesktop notifications without custom rendering. Preserve each notification's own activation context and reveal files with the platform file manager. Keep backend failures non-fatal and log platform failures with the plugin prefix.
 
-Exit gate: a state notification displays; a saved recording/replay/screenshot displays; clicking each independently reveals the exact file; two notifications remain independent; no helper process is introduced.
+Exit gate: a state notification displays on each supported platform; a saved recording/replay/screenshot displays; clicking each independently reveals the exact file; two notifications remain independent; no helper process is introduced.
 
 ### Phase 4 — MVP hardening and release readiness
 
-Make lifecycle teardown deterministic, remove callbacks before backend shutdown, invalidate activation context safely, handle deleted files, and avoid duplicate registration. Add focused tests for definitions/path guards and complete the Windows manual matrix.
+Make lifecycle teardown deterministic, remove callbacks before backend shutdown, invalidate activation context safely, handle deleted files, and avoid duplicate registration. Add focused tests for definitions/path guards and complete the supported-platform manual matrices.
 
-Exit gate: the Definition of Done in the POC is demonstrated on the standalone fixture, failure scenarios do not crash OBS, and the local start script rebuilds and launches the fresh plugin artifact.
+Exit gate: the Definition of Done in the POC is demonstrated on the standalone fixture and a Linux desktop session, failure scenarios do not crash OBS, and the platform build flow produces the fresh plugin artifact.
 
 ## Required verification evidence
 
-- Build: Windows x64 `RelWithDebInfo` using the repository CMake configuration.
+- Build: Windows x64 and Linux `RelWithDebInfo` using the repository CMake configuration.
 - Automated checks: focused unit tests for pure mapping/guard logic, plus CTest where configured.
 - Runtime: one portable `obs-dev` process, plugin load log, recording/replay/screenshot event logs, notification display, and click-to-reveal evidence.
 - Lifecycle: stop OBS before rebuild/reinstall, verify no standalone `obs64.exe` remains, and leave unrelated OBS installations untouched.
@@ -75,4 +75,4 @@ Exit gate: the Definition of Done in the POC is demonstrated on the standalone f
 
 ## Out of scope until a later product decision
 
-Settings, templates, editable text, localization, custom icons, grouping, notification history, sound controls, macOS/Linux support, companion processes, and any generic event/configuration framework remain excluded.
+Settings, templates, editable text, localization, custom icons, grouping, notification history, sound controls, macOS support, companion processes, and any generic event/configuration framework remain excluded.

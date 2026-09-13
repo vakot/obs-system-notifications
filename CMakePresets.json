@@ -21,6 +21,19 @@
         "dev": true,
         "deprecated": true
       }
+    },
+    {
+      "name": "linux",
+      "displayName": "Linux",
+      "description": "Build the Linux OBS plugin",
+      "binaryDir": "${sourceDir}/build_linux",
+      "cacheVariables": {
+        "CMAKE_INSTALL_PREFIX": "${sourceDir}/build_linux/install"
+      },
+      "warnings": {
+        "dev": true,
+        "deprecated": true
+      }
     }
   ],
   "buildPresets": [
@@ -28,6 +41,10 @@
       "name": "windows-x64",
       "configurePreset": "windows-x64",
       "configuration": "RelWithDebInfo"
+    },
+    {
+      "name": "linux",
+      "configurePreset": "linux"
     }
   ]
 }
