@@ -42,7 +42,7 @@ References: [Enable desktop toast notifications through an AppUserModelID](https
 
 ## Backend experiment results
 
-On 2026-09-05, the native backend compiled and loaded in the portable OBS runtime with the repository's Visual Studio/CMake toolchain. The harness registered an OBS-targeting shortcut with AppUserModelID `OBS Studio`; `Get-StartApps` reported the expected app identity while the shortcut target remained the existing `obs-dev/bin/64bit/obs64.exe`.
+On 2026-09-05, the native backend compiled and loaded in the portable OBS runtime with the repository's Visual Studio/CMake toolchain. The harness registered an OBS-targeting shortcut with AppUserModelID `OBS.SystemNotifications`; `Get-StartApps` reported the expected app identity while the shortcut target remained the existing `obs-dev/bin/64bit/obs64.exe`.
 
 The OBS UI was exercised through the portable process: recording start/save and replay start/save/stop each produced the expected notification payload logs, including the exact final recording and replay paths. Native toasts were visible with the `OBS System Notifications` attribution, and clicking a saved-recording toast while OBS remained open produced the in-process activation log and opened Explorer for the exact output path. No toast creation exception or backend failure log was emitted.
 

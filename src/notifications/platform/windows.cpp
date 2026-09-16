@@ -24,7 +24,7 @@
 namespace {
 
 constexpr const char *kLogPrefix = "[obs-system-notifications]";
-constexpr wchar_t kAppUserModelId[] = L"OBS Studio";
+constexpr wchar_t kAppUserModelId[] = L"OBS.SystemNotifications";
 constexpr wchar_t kNotificationShortcutName[] = L"OBS System Notifications.lnk";
 constexpr wchar_t kNotificationShortcutDescription[] = L"OBS Studio notification integration";
 constexpr size_t kMaxActiveToasts = 32;
@@ -245,9 +245,8 @@ bool WindowsNotificationBackend::start()
 
 		impl_->notifier = winrt::Windows::UI::Notifications::ToastNotificationManager::CreateToastNotifier(
 			winrt::hstring{kAppUserModelId});
-		blog(LOG_INFO, "%s Windows notification setting: %d", kLogPrefix,
-			static_cast<int>(impl_->notifier.Setting()));
 		impl_->started = true;
+		blog(LOG_INFO, "%s Windows notification backend ready", kLogPrefix);
 		return true;
 	} catch (const winrt::hresult_error &error) {
 		blog(LOG_ERROR, "%s Windows notification backend initialization failed: 0x%08lx", kLogPrefix,
