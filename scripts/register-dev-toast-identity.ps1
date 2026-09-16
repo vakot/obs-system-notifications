@@ -13,7 +13,7 @@ param(
 )
 
 $ErrorActionPreference = 'Stop'
-$appUserModelId = 'OBS Studio'
+$appUserModelId = 'OBS.SystemNotifications'
 $notificationLabel = 'OBS System Notifications'
 $shortcutPath = Join-Path $env:APPDATA "Microsoft\Windows\Start Menu\Programs\${notificationLabel}.lnk"
 $legacyShortcutPath = Join-Path $env:APPDATA 'Microsoft\Windows\Start Menu\Programs\OBS Studio (obs-system-notifications dev).lnk'
